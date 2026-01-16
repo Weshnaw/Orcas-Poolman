@@ -18,9 +18,9 @@ use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 #[derive(Debug, Display, Error, From)]
 enum Error {
-    NotifyError(notify::Error),
-    FsError(std::io::Error),
-    SerdeError(serde_json::Error),
+    Notify(notify::Error),
+    Fs(std::io::Error),
+    Serde(serde_json::Error),
     NoOrcaFolder,
 }
 
@@ -104,7 +104,7 @@ fn parse_file(path: &PathBuf) -> Result<FilamentConfig, Error> {
 }
 
 async fn reconcile_file(path: &PathBuf) {
-    if path.extension().map_or(false, |ext| ext != "json") || path.is_dir() {
+    if path.extension().is_some_and(|ext| ext != "json") || path.is_dir() {
         debug!("invalid file: {:?}", path);
         return;
     }
