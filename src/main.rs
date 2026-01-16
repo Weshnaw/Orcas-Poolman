@@ -6,7 +6,7 @@ use std::{
     sync::mpsc,
 };
 
-use derive_more::{Debug, Display, Error, From};
+use derive_more::{Debug, Deref, DerefMut, Display, Error, From, Into};
 use directories::ProjectDirs;
 use notify::{
     Event, EventKind, RecursiveMode, Watcher,
@@ -79,24 +79,39 @@ async fn main() -> Result<(), Error> {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct FilamentConfig {
-    #[serde(deserialize_with = "deserialize_singleton_array")]
-    nozzle_temperature: Option<Rc<str>>,
+    nozzle_temperature: ConfigField,
 }
 
-fn deserialize_singleton_array<'de, D>(deserializer: D) -> Result<Option<Rc<str>>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    // Deserialize as an optional Vec<String>
-    let opt: Option<Vec<String>> = Option::deserialize(deserializer)?;
+#[derive(Debug, Deref, DerefMut, From, Into)]
+struct ConfigField(Option<Rc<str>>);
 
-    Ok(opt.and_then(|mut v| {
-        if v.is_empty() {
-            None
-        } else {
-            Some(Rc::<str>::from(v.remove(0)))
+impl Serialize for ConfigField {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match &self.0 {
+            Some(field) => serializer.collect_seq([field]),
+            None => serializer.serialize_none(),
         }
-    }))
+    }
+}
+
+impl<'de> Deserialize<'de> for ConfigField {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let field: Option<Vec<Rc<str>>> = Option::deserialize(deserializer)?;
+        let field: Option<Rc<str>> = field.and_then(|mut v| {
+            if v.is_empty() {
+                None
+            } else {
+                Some(v.remove(0))
+            }
+        });
+        Ok(Self(field))
+    }
 }
 
 fn parse_file(path: &PathBuf) -> Result<FilamentConfig, Error> {
@@ -120,15 +135,15 @@ async fn handle_file(path: &PathBuf) {
 // Priority List:
 // Allow option to ignore OpenPrintTag values in case folks do not want to go through the hassle of adding OpenPrintTag to the extra fields, maybe in the future I will support other filament tags
 // OpenPrintTag value this should be from the manufacturer so these values should take precident (we do not touch these values)
-// Spoolman == Local (tie breaker is most recent last_modified unless local is specifically marked as 
-//                         spoolman_force_pull (forces the local to change with current spoolman) or 
-//                         spoolman_force_push (forces spoolman to update to the current local)) 
+// Spoolman == Local (tie breaker is most recent last_modified unless local is specifically marked as
+//                         spoolman_force_pull (forces the local to change with current spoolman) or
+//                         spoolman_force_push (forces spoolman to update to the current local))
 //             (store changes in local file somewhere)
-// the file name should be: (Manufacturer) Material - Name @Printer // can overwrite this on a per printer basis 
+// the file name should be: (Manufacturer) Material - Name @Printer // can overwrite this on a per printer basis
 // Exta data is stored in orca_poolman in json format, it can also contain any overrides for OpenPrintTag data
 // We will only update Fields such as Extruder Temp once if they do not exist, but we rely on the orca_poolman for the reconcilation of bed/extruder temp
 // the data in orca_poolman will consist of a map of printers, and a overrides object for more generic data like min/max temp, usually OpenPrintTag overrides
-// for e.x. 
+// for e.x.
 // {
 //   'printers': { "Voron": {...}, "Prusa": {...}}
 //   'overrides': {...}
@@ -141,5 +156,5 @@ async fn handle_file(path: &PathBuf) {
 // add dryrun (optional bool) which if present and true prevents the service from making any changes and outputs the desired changes to a new entry desired_spoolman, desired_local
 // last_modified just cause I don't want to deal with OS modified
 async fn reconcile_config(config: FilamentConfig) {
-    todo!("handle config: {:?}", config)
+    todo!("handle config: {:?}", config);
 }
