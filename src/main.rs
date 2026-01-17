@@ -222,7 +222,7 @@ impl<'de> Deserialize<'de> for ConfigNotesField {
 struct PoolManData {
     #[serde(default)]
     printers: HashMap<Rc<str>, FilamentConfig>,
-    overrides: HashMap<Rc<str>, Rc<str>>
+    overrides: HashMap<Rc<str>, Rc<str>>,
 }
 // Priority List:
 // Allow option to ignore OpenPrintTag values in case folks do not want to go through the hassle of adding OpenPrintTag to the extra fields, maybe in the future I will support other filament tags
