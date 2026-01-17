@@ -12,3 +12,4 @@ This project aims to be a background service that will attempt to be a Filament 
 ## Minor
 - Detect available spools and add / remove filament configs from local
 - Sync printers (though probably shouldn't / can't use spoolman for this)
+- add some form of templating engine for things like custom filament profile names styles
