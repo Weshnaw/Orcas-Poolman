@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs::{self, File},
     io::BufReader,
     path::PathBuf,
@@ -77,12 +78,7 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct FilamentConfig {
-    nozzle_temperature: ConfigField,
-}
-
-#[derive(Debug, Deref, DerefMut, From, Into)]
+#[derive(Debug, Deref, DerefMut, From, Into, Default)]
 struct ConfigField(Option<Rc<str>>);
 
 impl Serialize for ConfigField {
@@ -114,7 +110,7 @@ impl<'de> Deserialize<'de> for ConfigField {
     }
 }
 
-fn parse_file(path: &PathBuf) -> Result<FilamentConfig, Error> {
+fn parse_file(path: &PathBuf) -> Result<LocalFilamentConfig, Error> {
     Ok(serde_json::from_reader(BufReader::new(File::open(path)?))?)
 }
 
@@ -132,6 +128,102 @@ async fn handle_file(path: &PathBuf) {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Default)]
+struct LocalFilamentConfig {
+    #[serde(flatten)]
+    config: FilamentConfig,
+    filament_notes: ConfigNotesField,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+struct FilamentConfig {
+    name: Option<Rc<str>>,
+    default_filament_colour: ConfigField,
+    filament_vendor: ConfigField,
+    // Spoolman Properties:
+    //Material
+    //Density
+    //Diameter
+    nozzle_temperature: ConfigField,
+    //Bed Temperature
+
+    // Open Print Tag Properties:
+    // Min/Max temperatures
+    // Chamber Temperatures
+
+    // TODO: Inherits doesa a lot of heavy lifting, so idealy I would somehow chuck these values
+    inherits: Option<Rc<str>>,
+
+    // We only really need to specify fields that have a 1-1 with the spoolman tagging
+    #[serde(flatten, default)]
+    extra_fields: HashMap<Rc<str>, serde_json::Value>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+struct ConfigNotes {
+    spoolman_id: Option<u64>,
+    printer_id: Option<Rc<str>>,
+    spoolman_force_push: Option<bool>,
+    spoolman_force_pull: Option<bool>,
+    dry_run: Option<bool>,
+    last_modified: Option<u64>,
+    reconcilation_status: Option<ReconcilationStatus>,
+
+    // TODO: consider using serde_json::Value instead of converting the data to strings
+    #[serde(default)]
+    debug: Vec<Rc<str>>,
+    #[serde(default)]
+    errors: Vec<Rc<str>>,
+}
+
+// Uses serde-diff to get the actually changed differences
+#[derive(Serialize, Deserialize, Debug, Default)]
+enum ReconcilationStatus {
+    UpdateSpoolman(Rc<str>),
+    UpdatedLocal(Rc<str>),
+    UpdatedBoth(Rc<str>, Rc<str>),
+    #[default]
+    Noop,
+}
+
+#[derive(Debug, Deref, DerefMut, From, Into, Default)]
+struct ConfigNotesField(ConfigNotes);
+impl Serialize for ConfigNotesField {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.collect_seq([&self.0])
+    }
+}
+
+impl<'de> Deserialize<'de> for ConfigNotesField {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let field: Option<Vec<Rc<str>>> = Option::deserialize(deserializer)?;
+        let field = field
+            .and_then(|mut v| {
+                if v.is_empty() {
+                    None
+                } else {
+                    let notes = v.remove(0);
+                    let notes: ConfigNotes = serde_json::from_str(&notes).ok()?;
+                    Some(notes)
+                }
+            })
+            .unwrap_or_default();
+        Ok(Self(field))
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+struct PoolManData {
+    #[serde(default)]
+    printers: HashMap<Rc<str>, FilamentConfig>,
+    overrides: HashMap<Rc<str>, Rc<str>>
+}
 // Priority List:
 // Allow option to ignore OpenPrintTag values in case folks do not want to go through the hassle of adding OpenPrintTag to the extra fields, maybe in the future I will support other filament tags
 // OpenPrintTag value this should be from the manufacturer so these values should take precident (we do not touch these values)
@@ -152,9 +244,6 @@ async fn handle_file(path: &PathBuf) {
 // spoolman_force_push/pull will be removed after reconcilation
 // if the printer_id cannot be determined (@... is not present, printer_id is not present, or compatible_printers) then reconcilation does not occur and an error message is populated in the notes
 // if an error field is present AT_ALL then we do not proceed with reconcilation
-// add reconcilation_status (updated_spoolman, updated_local, etc) to the filament_notes, this is ignored in terms of the actual spoolman_reconcilation
-// add dryrun (optional bool) which if present and true prevents the service from making any changes and outputs the desired changes to a new entry desired_spoolman, desired_local
-// last_modified just cause I don't want to deal with OS modified
-async fn reconcile_config(config: FilamentConfig) {
-    todo!("handle config: {:?}", config);
+async fn reconcile_config(config: LocalFilamentConfig) {
+    todo!("handle config: {:#?}", config);
 }

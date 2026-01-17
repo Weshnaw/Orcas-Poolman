@@ -1,2 +1,2 @@
 [env]
-RUST_LOG = "info,Orca_Poolman=debug"
+RUST_LOG = "info,Orcas_Poolman=debug"
