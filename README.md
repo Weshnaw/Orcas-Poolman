@@ -5,7 +5,7 @@ This project aims to be a background service that will attempt to be a Filament 
 # Todo:
 ## Major
 - Spoolman REST requests
-- Reconciling the configurations
+- Reconciling the configurations and outputing the diffs
 - Add better clap and env property tooling
 - Refactor and Cleanup code
 - add a install script for windows and linux
