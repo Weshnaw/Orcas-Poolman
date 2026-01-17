@@ -151,7 +151,7 @@ struct FilamentConfig {
     // Min/Max temperatures
     // Chamber Temperatures
 
-    // TODO: Inherits doesa a lot of heavy lifting, so idealy I would somehow chuck these values
+    // TODO: Inherits doesa a lot of heavy lifting, so idealy I would somehow check these values
     inherits: Option<Rc<str>>,
 
     // We only really need to specify fields that have a 1-1 with the spoolman tagging
