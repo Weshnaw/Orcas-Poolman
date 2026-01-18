@@ -137,6 +137,8 @@ struct LocalFilamentConfig {
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct FilamentConfig {
+    // defaults to: (Manufacturer) Material - Name @Printer
+    filament_settings_id: Option<Rc<str>>,
     name: Option<Rc<str>>,
     default_filament_colour: ConfigField,
     filament_vendor: ConfigField,
@@ -162,18 +164,40 @@ struct FilamentConfig {
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct ConfigNotes {
     spoolman_id: Option<u64>,
+    // if the printer_id is not present the service will attempt to guess based on the compatible_printers, or inherits ; if it is unable to it will throw an error
+    // setting a printer_id that does not exist will create a new entry in the PoolmanData
     printer_id: Option<Rc<str>>,
+    // there should be a flag to set wether the force_push/pull should be reset to false after reconcilation 
     spoolman_force_push: Option<bool>,
     spoolman_force_pull: Option<bool>,
     dry_run: Option<bool>,
     last_modified: Option<u64>,
     reconcilation_status: Option<ReconcilationStatus>,
 
-    // TODO: consider using serde_json::Value instead of converting the data to strings
+    // debug will be a running list, i.e. unless the user manually deletes entries (or maybe a settings to only hold x logs) it will only be appended to after reconcilation
     #[serde(default)]
-    debug: Vec<Rc<str>>,
+    debug: Vec<DebugEntry>,
+
+    // if error is present at all then the service will not proceed with reconcilations, maybe could add a severity enum, but lets try the simple version first
     #[serde(default)]
-    errors: Vec<Rc<str>>,
+    errors: Vec<ErrorEntry>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct DebugEntry {
+    data: DebugData,
+    timestampe: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+enum DebugData {
+    Reconcilation(ReconcilationStatus),
+    Generic(Rc<str>),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct ErrorEntry {
+    message: Rc<str>,
 }
 
 // Uses serde-diff to get the actually changed differences
@@ -219,31 +243,15 @@ impl<'de> Deserialize<'de> for ConfigNotesField {
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
-struct PoolManData {
+struct PoolmanData {
     #[serde(default)]
     printers: HashMap<Rc<str>, FilamentConfig>,
+    // Allows overriding the data from OpenPrintTags, or other static properties that you wish to ignore
     overrides: HashMap<Rc<str>, Rc<str>>,
 }
-// Priority List:
-// Allow option to ignore OpenPrintTag values in case folks do not want to go through the hassle of adding OpenPrintTag to the extra fields, maybe in the future I will support other filament tags
-// OpenPrintTag value this should be from the manufacturer so these values should take precident (we do not touch these values)
-// Spoolman == Local (tie breaker is most recent last_modified unless local is specifically marked as
-//                         spoolman_force_pull (forces the local to change with current spoolman) or
-//                         spoolman_force_push (forces spoolman to update to the current local))
-//             (store changes in local file somewhere)
-// the file name should be: (Manufacturer) Material - Name @Printer // can overwrite this on a per printer basis
-// Exta data is stored in orca_poolman in json format, it can also contain any overrides for OpenPrintTag data
-// We will only update Fields such as Extruder Temp once if they do not exist, but we rely on the orca_poolman for the reconcilation of bed/extruder temp
-// the data in orca_poolman will consist of a map of printers, and a overrides object for more generic data like min/max temp, usually OpenPrintTag overrides
-// for e.x.
-// {
-//   'printers': { "Voron": {...}, "Prusa": {...}}
-//   'overrides': {...}
-// }
-// the orca slicer filament_notes will contain json data for the spoolman_id (optional str), printer_id (optional str),  spoolman_force_push/pull (optional bool)
-// spoolman_force_push/pull will be removed after reconcilation
-// if the printer_id cannot be determined (@... is not present, printer_id is not present, or compatible_printers) then reconcilation does not occur and an error message is populated in the notes
-// if an error field is present AT_ALL then we do not proceed with reconcilation
+
+// reconcilation prefers spoolman for data that should be static (like manufactuer, colour, etc), 
+//     then the entry with the latest last_modified date, if one not present it always prefers the one with it 
 async fn reconcile_config(config: LocalFilamentConfig) {
     todo!("handle config: {:#?}", config);
 }
